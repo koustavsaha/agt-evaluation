@@ -7,11 +7,11 @@ step by step in later sections.
 """
 
 from google.adk.agents import Agent
-from agent.tools import web_search, read_file, write_report, execute_shell
+from research_agent.tools import web_search, read_file, write_report, execute_shell
 
-agent = Agent(
+root_agent = Agent(
     # The LLM model that powers the agent's reasoning
-    model="gemini-2.0-flash",
+    model="gemini-3-flash-preview",
 
     # A unique name for this agent
     name="research_analyst",
