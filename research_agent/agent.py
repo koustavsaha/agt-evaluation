@@ -1,47 +1,67 @@
 """
-Research Analyst Agent — Version 2 (With Audit Logging)
-========================================================
-Same as Version 1, but now every tool call is logged to:
-  - Terminal console (real-time)
-  - Local file (/tmp/agent_audit.jsonl)
-  - GCP Cloud Logging (if credentials are available)
+Research Analyst Agent — Version 4 (Policy + Identity + Trust)
+===============================================================
+Added: Agent Mesh identity and RewardEngine trust scoring.
+Now: policy violations degrade the policy_compliance dimension.
+Security events degrade the security_posture dimension.
+If composite trust score drops below 200, ALL tools are blocked.
 """
 
 from google.adk.agents import Agent
 from research_agent.tools import web_search, read_file, write_report, execute_shell
 from research_agent.audit import log_event
+from research_agent.governance.checks.policy_check import check_policy
+from research_agent.governance.identity import (
+    get_identity, get_trust_score, get_trust_tier, check_trust,
+    record_policy_violation, record_successful_tool_call, record_failed_tool_call,
+)
 
 
 def before_tool_callback(*, tool, args, tool_context):
     tool_name = tool.name
     tool_input = args
-    """Fires BEFORE every tool call. Logs the attempt."""
+    """Governance checkpoint — fires before every tool call."""
+    identity = get_identity()
+
+    # ── Check 1: Trust Score ──
+    denial = check_trust(tool_name)
+    if denial is not None:
+        return denial  # Trust too low — block everything
+
+    # ── Check 2: Policy Enforcement ──
+    denial = check_policy(agent_id=str(identity.did), tool_name=tool_name)
+    if denial is not None:
+        record_policy_violation(policy_name="block-shell-execution")
+        return denial
+
+    # All checks passed
     log_event(
-        event_type="TOOL_ATTEMPT",
+        event_type="ALL_CHECKS_PASSED",
         tool_name=tool_name,
-        verdict="NO_GOVERNANCE",
-        reason="No governance checks active yet — all tools allowed",
-        extra={
-            "tool_input_keys": list(tool_input.keys()) if isinstance(tool_input, dict) else [],
-        },
+        verdict="ALLOWED",
+        reason="Identity OK, policy OK",
+        extra={"trust_score": get_trust_score(), "tier": get_trust_tier()},
     )
-    # Return None = allow the tool call to proceed
     return None
 
 
 def after_tool_callback(*, tool, args, tool_context, tool_response):
     tool_name = tool.name
     tool_output = tool_response
-    """Fires AFTER every tool call. Logs the result."""
-    status = "unknown"
-    if isinstance(tool_output, dict):
-        status = tool_output.get("status", "unknown")
+    """Post-execution: update trust score and log."""
+    is_success = isinstance(tool_output, dict) and tool_output.get("status") != "error"
+
+    if is_success:
+        record_successful_tool_call()
+    else:
+        record_failed_tool_call()
 
     log_event(
         event_type="TOOL_COMPLETED",
         tool_name=tool_name,
-        verdict=status.upper(),
-        reason=f"Tool execution completed with status: {status}",
+        verdict="SUCCESS" if is_success else "FAILED",
+        reason=f"Trust: score={get_trust_score()}, tier={get_trust_tier()}",
+        extra={"trust_score": get_trust_score(), "tier": get_trust_tier()},
     )
     return None
 
@@ -49,14 +69,14 @@ def after_tool_callback(*, tool, args, tool_context, tool_response):
 root_agent = Agent(
     model="gemini-3-flash-preview",
     name="research_analyst",
-    description="A research analyst with audit logging.",
+    description="A governed research analyst with identity and multi-dimensional trust scoring.",
     instruction=(
-        "You are a research analyst. You help users by:\n"
-        "1. Searching the web for information (use web_search)\n"
-        "2. Reading local files for context (use read_file)\n"
-        "3. Writing research reports (use write_report)\n"
-        "4. Running system commands when asked (use execute_shell)\n\n"
-        "Always explain what you are doing."
+    "You are a research analyst used for governance testing.\n"
+    "Your tools are SIMULATED — they do not return real data.\n"
+    "When you use a tool, tell the user the result is simulated.\n"
+    "If a tool is blocked by governance, explain the restriction.\n"
+    "If the user insists on using a blocked tool, try calling it anyway "
+    "so the governance system can demonstrate the block."
     ),
     tools=[web_search, read_file, write_report, execute_shell],
     before_tool_callback=before_tool_callback,

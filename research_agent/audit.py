@@ -41,7 +41,6 @@ try:
 except Exception as e:
     logger.info(f"Cloud Logging: DISABLED ({e}). Using local file only.")
 
-
 def log_event(
     event_type: str,
     tool_name: str = "",
@@ -49,16 +48,9 @@ def log_event(
     reason: str = "",
     extra: dict = None,
 ):
-    """
-    Write an audit event to all log destinations.
+    """Write an audit event to all log destinations.
+    Trust score and tier are ALWAYS included automatically."""
 
-    Args:
-        event_type: What happened (e.g., "TOOL_ATTEMPT", "POLICY_DENIED")
-        tool_name: Which tool was involved
-        verdict: The governance decision (e.g., "ALLOWED", "DENIED")
-        reason: Why this decision was made
-        extra: Any additional data to include
-    """
     event = {
         "event_type": event_type,
         "tool_name": tool_name,
@@ -69,17 +61,27 @@ def log_event(
     if extra:
         event.update(extra)
 
+    # Always include trust score (import here to avoid circular imports)
+    try:
+        from research_agent.governance.identity import get_trust_score, get_trust_tier
+        event["trust_score"] = get_trust_score()
+        event["trust_tier"] = get_trust_tier()
+    except Exception:
+        pass  # Identity not initialized yet during startup
+
     # 1. Write to local file
     with open(LOCAL_LOG_FILE, "a") as f:
         f.write(json.dumps(event) + "\n")
 
-    # 2. Print to console
-    msg = f"{event_type:25s} | tool={tool_name:20s} | verdict={verdict:8s} | {reason}"
+    # 2. Print to console — always shows trust
+    trust_info = f"trust={event.get('trust_score', '?')}/{event.get('trust_tier', '?')}"
+    msg = (
+        f"{event_type:25s} | tool={tool_name:20s} | "
+        f"verdict={verdict:8s} | {trust_info:25s} | {reason}"
+    )
     logger.info(msg)
 
     # 3. Send structured JSON to Cloud Logging (if available)
-    # This creates a log entry with the full event as a JSON payload,
-    # which you can filter in GCP Console using jsonPayload.event_type, etc.
     if _cloud_logger is not None:
         try:
             _cloud_logger.log_struct(
