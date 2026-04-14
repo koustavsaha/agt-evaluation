@@ -3,12 +3,7 @@ Hands-on evaluation of Microsoft Agent Governance Toolkit
 
 
 
-# PART A: ENVIRONMENT SETUP
-
-
-## Section 1: Set Up Your Mac Development Environment
-
-### 1.1 Install Prerequisites
+### Install Prerequisites
 
 Open Terminal on your Mac and run each command one at a time:
 
@@ -113,16 +108,24 @@ __pycache__/
 .DS_Store
 ```
 
+```bash
+source .venv/bin/activate
+
+# Install the full stack (all 7 packages in one command)
+pip install agent-governance-toolkit[full]
+```
 
 
 
+###  Verify Each Package
+
+
+python tests/test_00_verify_install.py
 
 
 
 
 ##  Run and Test the  Agent
-
-
 
 In VS Code's terminal:
 
@@ -142,32 +145,3 @@ adk web agent
 Open your web browser and go to: **http://localhost:8000**
 
 You will see a chat interface. This is ADK's built-in development UI. On the left, you should see your agent name "research_analyst".
-
-
-
- 
-
-
-
-
-
-
-
-
-
-
-```bash
-source .venv/bin/activate
-
-# Install the full stack (all 7 packages in one command)
-pip install agent-governance-toolkit[full]
-```
-
-
-
-###  Verify Each Package
-
-
-python tests/test_00_verify_install.py
-
-
