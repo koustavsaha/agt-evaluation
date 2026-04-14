@@ -13,7 +13,7 @@ ENFORCEMENT_MODE = "ENFORCE"
 
 def is_enforce_mode() -> bool:
     """Return True if governance is in ENFORCE mode."""
-    return ENFORCEMENT_MODE == "MONITOR"
+    return ENFORCEMENT_MODE == "ENFORCE"
 
 
 def get_mode() -> str:

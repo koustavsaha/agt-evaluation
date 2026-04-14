@@ -3,6 +3,9 @@ Audit Logger — writes every agent action to:
   1. A local JSONL file (/tmp/agent_audit.jsonl) — always works
   2. GCP Cloud Logging — works when running on GCP or with credentials
   3. Console print — for real-time visibility in your terminal
+  4. AGT FlightRecorder — hash-chained tamper-evident audit log (Agent OS)
+
+Trust score and tier are included in EVERY event automatically.
 """
 
 import datetime
@@ -27,19 +30,24 @@ if not logger.handlers:  # Avoid adding duplicate handlers on reload
 _cloud_logger = None
 try:
     import google.cloud.logging as cloud_logging
-
-    # This will use Application Default Credentials
-    # On GCP: works automatically
-    # On Mac: works if you ran 'gcloud auth application-default login'
     client = cloud_logging.Client()
-
-    # Get a dedicated Cloud Logging logger (NOT setup_logging which
-    # hijacks the root logger — we want explicit control)
     _cloud_logger = client.logger("agent-governance-audit")
-
     logger.info("Cloud Logging: ENABLED (logs visible in GCP Console)")
 except Exception as e:
     logger.info(f"Cloud Logging: DISABLED ({e}). Using local file only.")
+
+# ── Set up AGT FlightRecorder (hash-chained audit log) ──
+_flight_recorder = None
+try:
+    from agent_os import FlightRecorder
+    _flight_recorder = FlightRecorder(
+        db_path="/tmp/agt_flight_recorder.db",
+        enable_batching=False,  # Write immediately for testing
+    )
+    logger.info("FlightRecorder: ENABLED (tamper-evident audit at /tmp/agt_flight_recorder.db)")
+except Exception as e:
+    logger.info(f"FlightRecorder: DISABLED ({e})")
+
 
 def log_event(
     event_type: str,
@@ -69,7 +77,7 @@ def log_event(
     except Exception:
         pass  # Identity not initialized yet during startup
 
-    # 1. Write to local file
+    # 1. Write to local JSONL file
     with open(LOCAL_LOG_FILE, "a") as f:
         f.write(json.dumps(event) + "\n")
 
@@ -90,5 +98,19 @@ def log_event(
             )
         except Exception as e:
             logger.warning(f"Cloud Logging write failed: {e}")
+
+    # 4. Write to AGT FlightRecorder (hash-chained, tamper-evident)
+    if _flight_recorder is not None:
+        try:
+            trace_id = _flight_recorder.start_trace(
+                agent_id=event.get("agent_id", "research-analyst"),
+                tool_name=tool_name or "governance",
+            )
+            if verdict in ("DENIED", "BLOCKED"):
+                _flight_recorder.log_violation(trace_id, reason)
+            else:
+                _flight_recorder.log_success(trace_id, result=reason)
+        except Exception:
+            pass  # Don't let FlightRecorder errors break governance
 
     return event

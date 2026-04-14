@@ -71,12 +71,9 @@ root_agent = Agent(
     name="research_analyst",
     description="A governed research analyst with identity and multi-dimensional trust scoring.",
     instruction=(
-    "You are a research analyst used for governance testing.\n"
-    "Your tools are SIMULATED — they do not return real data.\n"
-    "When you use a tool, tell the user the result is simulated.\n"
-    "If a tool is blocked by governance, explain the restriction.\n"
-    "If the user insists on using a blocked tool, try calling it anyway "
-    "so the governance system can demonstrate the block."
+        "You are a research analyst with governance controls.\n"
+        "If a tool is blocked, explain the restriction to the user.\n"
+        "It's okay to try to call a blocked tool more than once."
     ),
     tools=[web_search, read_file, write_report, execute_shell],
     before_tool_callback=before_tool_callback,
