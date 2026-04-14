@@ -35,24 +35,9 @@ cd agt-evaluation
 code .
 ```
 
-###  See the Project Structure
 
-agt-evaluation/
-├── agent/
-│   ├── __init__.py
-│   ├── tools/
-│   │   └── __init__.py
-│   └── governance/
-│       ├── __init__.py
-│       └── checks/
-│           └── __init__.py
-├── policies/
-├── tests/
-├── scripts/
-└── README.md
-```
 
-### 1.5 Create a Python Virtual Environment
+### Create a Python Virtual Environment
 
 Run these commands in **VS Code's terminal**
 
@@ -80,7 +65,7 @@ pip install google-adk
 
 
 
-### 1.7 Set Up Gemini API Access
+### Set Up Gemini API Access
 
 Your agent needs access to a Gemini model (the LLM that powers its reasoning).
 
